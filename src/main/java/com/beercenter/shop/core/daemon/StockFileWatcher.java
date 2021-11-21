@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.*;
 
@@ -35,7 +34,7 @@ public class StockFileWatcher {
                 }
                 key.reset();
             }
-        } catch (InterruptedException | FileNotFoundException e) {
+        } catch (InterruptedException e ) {
             log.warn("interrupted exception for monitoring service");
         }
     }

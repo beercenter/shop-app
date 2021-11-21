@@ -30,7 +30,7 @@ public class StockFileProcessorServiceImpl {
     private StringBuilder stringBuilder;
     private Set<Variant> variantUpdateFails;
 
-    public void processFile(final Path filePath) throws FileNotFoundException {
+    public void processFile(final Path filePath) {
         cleanVariables();
         try {
             log.info("START -> Execution");
@@ -46,14 +46,15 @@ public class StockFileProcessorServiceImpl {
             addInfo("TOTAL PRODUCTS TO UPDATE: " + variantsToUpdate.size());
             addInfo("TOTAL PRODUCTS UPDATE FAILS: " + variantUpdateFails.size());
             addInfo("FAILS: " + variantUpdateFails.toString());
-            writeReport();
         } catch (final Exception e) {
             addInfo("ERROR: " + ExceptionUtils.getMessage(e));
             log.error("Error has occurred while file processing: ", e);
+        } finally {
+            writeReport();
         }
     }
 
-    private void writeReport() throws IOException {
+    private void writeReport() {
         final File reportDir = new File(configProperties.getReportfolder());
         final List<Long> foldersNames = Arrays.asList(reportDir.list()).stream().map(folderName -> Long.valueOf(folderName)).collect(Collectors.toList());
         Long max = CollectionUtils.isEmpty(foldersNames) ? 0L : Collections.max(foldersNames);
@@ -61,9 +62,15 @@ public class StockFileProcessorServiceImpl {
         final String newReportDirPath = configProperties.getReportfolder() + "\\" + max;
         final File newReportDir = new File(newReportDirPath);
         newReportDir.mkdir();
-        final FileWriter myWriter = new FileWriter(newReportDirPath + "\\report.txt");
-        myWriter.write(stringBuilder.toString());
-        myWriter.close();
+        final FileWriter myWriter;
+        try {
+            myWriter = new FileWriter(newReportDirPath + "\\report.txt");
+            myWriter.write(stringBuilder.toString());
+            myWriter.close();
+        } catch (IOException e) {
+            log.error("REPORT CAN NOT BE GENERATED");
+        }
+
     }
 
     private void addInfo(String message) {
@@ -88,7 +95,7 @@ public class StockFileProcessorServiceImpl {
         log.info("START -> Updating products policy");
         variantsToUpdate.forEach(variant -> {
             try {
-                productServiceImpl.updateProductVariant(Variant.builder().inventory_policy(variant.getInventory_policy()).id(variant.getId()).build());
+                productServiceImpl.updateProductVariant(variant);
             } catch (Exception e) {
                 final String message = "ERROR UPDATING POLICY OF PRODUCT " + variant.getSku();
                 log.info(message);

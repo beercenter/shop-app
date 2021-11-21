@@ -1,6 +1,7 @@
 package com.beercenter.shop.core.services;
 
 import com.beercenter.shop.core.model.*;
+import com.beercenter.shop.core.utils.InventoryPolicy;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -10,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static com.beercenter.shop.core.utils.InventoryPolicy.SHOPIFY_MANAGEMENT;
 
 @Slf4j
 @Service
@@ -25,8 +28,9 @@ public class ProductServiceImpl {
     }
 
     public String updateProductVariant(final Variant variant) {
+        final VariantRequest request = VariantRequest.builder().variant(Variant.builder().inventory_policy(variant.getInventory_policy()).id(variant.getId()).inventory_management(SHOPIFY_MANAGEMENT.getValue()).build()).build();
 
-        return shopifyApiService.updateVariant(variant.getId(), VariantRequest.builder().variant(variant).build());
+        return shopifyApiService.updateVariant(variant.getId(), request);
     }
 
     public Map<Long, InventoryLevel> getVariantInventoryList(final List<Variant> variants) {
