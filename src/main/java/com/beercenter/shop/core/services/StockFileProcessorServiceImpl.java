@@ -37,7 +37,7 @@ public class StockFileProcessorServiceImpl {
             final Set<Variant> variants = getProductsVariants();
             final Map<String, Long> productsStockMap = getProductsStockMapFromFile(filePath);
             final List<Variant> variantsToUpdate = getVariantsToUpdate(variants, productsStockMap);
-            if (!CollectionUtils.isEmpty(variantsToUpdate)){
+            if (!CollectionUtils.isEmpty(variantsToUpdate)) {
                 updateProductsStock(variantsToUpdate);
                 updateProductsInventoryPolicy(variantsToUpdate);
             }
@@ -50,20 +50,13 @@ public class StockFileProcessorServiceImpl {
         } catch (final Exception e) {
             addInfo("ERROR: " + ExceptionUtils.getMessage(e));
             log.error("Error has occurred while file processing: ", e);
-        } finally {
-            removeProcessedFile(filePath);
         }
-    }
-
-    private void removeProcessedFile(final Path filePath) {
-
-        filePath.toFile().delete();
     }
 
     private void writeReport() throws IOException {
         final File reportDir = new File(configProperties.getReportfolder());
         final List<Long> foldersNames = Arrays.asList(reportDir.list()).stream().map(folderName -> Long.valueOf(folderName)).collect(Collectors.toList());
-        Long max = CollectionUtils.isEmpty(foldersNames)? 0L : Collections.max(foldersNames);
+        Long max = CollectionUtils.isEmpty(foldersNames) ? 0L : Collections.max(foldersNames);
         max += 1;
         final String newReportDirPath = configProperties.getReportfolder() + "\\" + max;
         final File newReportDir = new File(newReportDirPath);
@@ -81,6 +74,7 @@ public class StockFileProcessorServiceImpl {
     private void cleanVariables() {
         stringBuilder = new StringBuilder();
         variantUpdateFails = new HashSet<>();
+        stringBuilder.append("REPORT");
     }
 
     private Set<Variant> getProductsVariants() {
@@ -147,11 +141,22 @@ public class StockFileProcessorServiceImpl {
 
     private Map<String, Long> getProductsStockMapFromFile(final Path filePath) throws IOException {
         log.info("START -> Reading products from file");
-        final FileReader fileReader = new FileReader(filePath.toFile());
-        List<ProductStockInfo> productStockInfoList = new CsvToBeanBuilder(fileReader).withSkipLines(1)
-                .withType(ProductStockInfo.class).withSeparator(';').build().parse();
+        FileReader fileReader = null;
+        File stockFile = null;
+        List<ProductStockInfo> productStockInfoList = new ArrayList<>();
+        try {
+            stockFile = filePath.toFile();
+            fileReader = new FileReader(stockFile);
+            productStockInfoList = new CsvToBeanBuilder(fileReader).withSkipLines(1)
+                    .withType(ProductStockInfo.class).withSeparator(';').build().parse();
+            log.info("END -> Reading products from file");
+        } catch (final Exception e) {
+            fileReader.close();
+            stockFile.delete();
+            throw e;
+        }
         fileReader.close();
-        log.info("END -> Reading products from file");
+        stockFile.delete();
 
         return productStockInfoList.stream().collect(Collectors.toMap(ProductStockInfo::getSku, ProductStockInfo::getStock));
     }
