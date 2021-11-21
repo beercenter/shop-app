@@ -1,0 +1,27 @@
+monitoringfolder: C:\Users\user\Desktop\STOCK
+reportfolder: C:\Users\user\Desktop\STOCK\REPORT
+
+spring:
+  application:
+    name: shop
+  cloud:
+    loadbalancer:
+      ribbon:
+        enabled: false
+
+shopify:
+  token: Zjk2YzRkZDNhNDE3NjQxZmE1ODRiNjE1MjEwNTFlMWM6c2hwcGFfZDdjZWNmMDIxMWQ1Y2U2YzZlN2I2ZDk3MTEzOTM0MDI
+  url:
+    base: https://beercenter-es.myshopify.com/admin/api/2021-10/
+    products: products.json
+    variant: variants/{id}.json
+    inventorylevel: inventory_levels.json
+    inventoryleveladjust: inventory_levels/adjust.json
+
+feign:
+  httpclient:
+    disableSslValidation: true
+    enabled: false
+  okhttp:
+    enabled: true
+
