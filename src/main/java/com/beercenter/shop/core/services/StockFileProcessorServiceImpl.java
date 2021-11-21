@@ -38,8 +38,8 @@ public class StockFileProcessorServiceImpl {
             final Map<String, Long> productsStockMap = getProductsStockMapFromFile(filePath);
             final List<Variant> variantsToUpdate = getVariantsToUpdate(variants, productsStockMap);
             if (!CollectionUtils.isEmpty(variantsToUpdate)) {
-                updateProductsStock(variantsToUpdate);
                 updateProductsInventoryPolicy(variantsToUpdate);
+                updateProductsStock(variantsToUpdate);
             }
             log.info(String.format("END -> Execution { TOTAL READ : %s , TOTAL UPDATED : %s }", productsStockMap.size(), variantsToUpdate.size()));
             addInfo("TOTAL PRODUCTS READ: " + productsStockMap.size());
@@ -105,7 +105,7 @@ public class StockFileProcessorServiceImpl {
 
         variantsToUpdate.forEach(variant -> {
             try {
-                productServiceImpl.adjustVariantInventory(inventoryLevelMap.get(variant.getInventory_item_id()), variant.getInventory_quantity());
+                productServiceImpl.adjustVariantInventory(inventoryLevelMap.get(variant.getInventory_item_id()), variant.getStockAdjust());
             } catch (Exception e) {
                 final String message = "ERROR UPDATING STOCK OF PRODUCT " + variant.getSku();
                 log.info(message);
@@ -128,7 +128,7 @@ public class StockFileProcessorServiceImpl {
                     } else {
                         variant.setInventory_policy(ONLY_AT_STORE.getValue());
                     }
-                    variant.setInventory_quantity(stock - variant.getInventory_quantity());
+                    variant.setStockAdjust(stock - variant.getInventory_quantity());
                     variantsToUpdate.add(variant);
                 }
             } else {
