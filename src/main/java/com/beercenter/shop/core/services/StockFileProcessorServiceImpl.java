@@ -4,7 +4,6 @@ import com.beercenter.shop.core.beans.ConfigProperties;
 import com.beercenter.shop.core.model.InventoryLevel;
 import com.beercenter.shop.core.model.ProductStockInfo;
 import com.beercenter.shop.core.model.Variant;
-import com.beercenter.shop.core.utils.InventoryPolicy;
 import com.opencsv.bean.CsvToBeanBuilder;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,8 +33,8 @@ public class StockFileProcessorServiceImpl {
         cleanVariables();
         try {
             log.info("START -> Execution");
-            final Set<Variant> variants = getProductsVariants();
             final Map<String, Long> productsStockMap = getProductsStockMapFromFile(filePath);
+            final Set<Variant> variants = getProductsVariants();
             final List<Variant> variantsToUpdate = getVariantsToUpdate(variants, productsStockMap);
             if (!CollectionUtils.isEmpty(variantsToUpdate)) {
                 final Map<Long, InventoryLevel> inventoryLevelMap = productServiceImpl.getVariantInventoryList(variantsToUpdate);
@@ -122,36 +121,34 @@ public class StockFileProcessorServiceImpl {
         return variantsToUpdate;
     }
 
-    private Map<String, Long> getProductsStockMapFromFile(final Path filePath) throws IOException {
+    private Map<String, Long> getProductsStockMapFromFile(final Path filePath) throws Exception {
         log.info("START -> Reading products from file");
-        FileReader fileReader = null;
-        File stockFile = null;
         List<ProductStockInfo> productStockInfoList = new ArrayList<>();
+        File stockFile = null;
+        FileReader fileReader = null;
         try {
             stockFile = filePath.toFile();
             fileReader = new FileReader(stockFile);
             productStockInfoList = new CsvToBeanBuilder(fileReader).withSkipLines(1)
                     .withType(ProductStockInfo.class).withSeparator(';').build().parse();
             log.info("END -> Reading products from file");
+            closeFileReader(fileReader);
+            deleteFile(stockFile);
         } catch (final Exception e) {
             closeFileReader(fileReader);
             deleteFile(stockFile);
             throw e;
         }
-        closeFileReader(fileReader);
-        deleteFile(stockFile);
-
         return productStockInfoList.stream().collect(Collectors.toMap(ProductStockInfo::getSku, ProductStockInfo::getStock));
     }
 
     private void deleteFile(final File stockFile) {
         if (stockFile != null)
-        stockFile.delete();
+            stockFile.delete();
     }
 
     private void closeFileReader(final FileReader fileReader) throws IOException {
         if (fileReader != null)
-        fileReader.close();
+            fileReader.close();
     }
 }
-
