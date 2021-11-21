@@ -39,11 +39,7 @@ public class StockFileWatcher {
                 }
                 key.reset();
             }
-<<<<<<< HEAD
-        } catch (InterruptedException e ) {
-=======
         } catch (InterruptedException e) {
->>>>>>> 278a2cf88e189dd8defa2fd6dccb8996d15a74fc
             log.warn("interrupted exception for monitoring service");
         }
     }
