@@ -11,7 +11,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface ShopifyApiService {
 
     @RequestMapping(method = RequestMethod.GET, value = "${shopify.url.products}", consumes = "application/json; charset=utf-8", headers = {"Authorization=Basic ${shopify.token}"})
-    ProductResponse getShopProducts();
+    ProductResponse getShopProducts(@RequestParam("limit") int limit);
+
+    @RequestMapping(method = RequestMethod.GET, value = "${shopify.url.products}", consumes = "application/json; charset=utf-8", headers = {"Authorization=Basic ${shopify.token}"})
+    ProductResponse getShopProductsSinceId(@RequestParam("limit") int limit, @RequestParam("since_id") String sinceId);
 
     @RequestMapping(method = RequestMethod.PUT, value = "${shopify.url.variant}", consumes = "application/json; charset=utf-8", headers = {"Authorization=Basic ${shopify.token}"})
     String updateVariant(@RequestParam("id") Long variantId, @RequestBody VariantRequest variant);

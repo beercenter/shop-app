@@ -35,7 +35,7 @@ public class StockFileWatcher {
                 }
                 key.reset();
             }
-        } catch (InterruptedException | FileNotFoundException e) {
+        } catch (InterruptedException e) {
             log.warn("interrupted exception for monitoring service");
         }
     }
