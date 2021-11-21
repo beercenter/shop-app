@@ -3,6 +3,8 @@ package com.beercenter.shop.core.daemon;
 import com.beercenter.shop.core.services.StockFileProcessorServiceImpl;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +12,7 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.HashMap;
 
 @Slf4j
 @Component
@@ -27,14 +30,20 @@ public class StockFileWatcher {
             WatchKey key;
             while ((key = watchService.take()) != null) {
                 for (WatchEvent<?> event : key.pollEvents()) {
+                    Thread.sleep(2000);
                     log.info("Event kind: {}; File affected: {}", event.kind(), event.context());
                     final Path folder = Path.of(key.watchable().toString());
                     final Path filePath = folder.resolve(event.context().toString());
-                    stockFileProcessorService.processFile(filePath);
+                    if (StringUtils.isNotEmpty(FilenameUtils.getExtension(filePath.toString())))
+                        stockFileProcessorService.processFile(filePath);
                 }
                 key.reset();
             }
+<<<<<<< HEAD
         } catch (InterruptedException e ) {
+=======
+        } catch (InterruptedException e) {
+>>>>>>> 278a2cf88e189dd8defa2fd6dccb8996d15a74fc
             log.warn("interrupted exception for monitoring service");
         }
     }

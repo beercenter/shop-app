@@ -16,8 +16,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.beercenter.shop.core.utils.InventoryPolicy.ONLY_AT_STORE;
-import static com.beercenter.shop.core.utils.InventoryPolicy.REGULAR;
+import static com.beercenter.shop.core.utils.InventoryPolicy.*;
 
 @AllArgsConstructor
 @Slf4j
@@ -34,12 +33,12 @@ public class StockFileProcessorServiceImpl {
         cleanVariables();
         try {
             log.info("START -> Execution");
-            final Set<Variant> variants = getProductsVariants();
             final Map<String, Long> productsStockMap = getProductsStockMapFromFile(filePath);
+            final Set<Variant> variants = getProductsVariants();
             final List<Variant> variantsToUpdate = getVariantsToUpdate(variants, productsStockMap);
             if (!CollectionUtils.isEmpty(variantsToUpdate)) {
-                updateProductsInventoryPolicy(variantsToUpdate);
-                updateProductsStock(variantsToUpdate);
+                final Map<Long, InventoryLevel> inventoryLevelMap = productServiceImpl.getVariantInventoryList(variantsToUpdate);
+                variantsToUpdate.forEach(variant -> updateProduct(variant, inventoryLevelMap));
             }
             log.info(String.format("END -> Execution { TOTAL READ : %s , TOTAL UPDATED : %s }", productsStockMap.size(), variantsToUpdate.size()));
             addInfo("TOTAL PRODUCTS READ: " + productsStockMap.size());
@@ -51,6 +50,19 @@ public class StockFileProcessorServiceImpl {
             log.error("Error has occurred while file processing: ", e);
         } finally {
             writeReport();
+        }
+    }
+
+    private void updateProduct(final Variant variant, final Map<Long, InventoryLevel> inventoryLevelMap) {
+        try {
+            log.info("UPDATING PRODUCT: " + variant.getSku());
+            productServiceImpl.updateProductVariant(Variant.builder().inventory_policy(variant.getInventory_policy()).inventory_management(variant.getInventory_management()).id(variant.getId()).build());
+            productServiceImpl.adjustVariantInventory(inventoryLevelMap.get(variant.getInventory_item_id()), variant.getStockAdjust());
+        } catch (Exception e) {
+            final String message = "ERROR UPDATING PRODUCT " + variant.getSku() + " ERROR: " + ExceptionUtils.getMessage(e);
+            log.info(message);
+            addInfo(message);
+            variantUpdateFails.add(variant);
         }
     }
 
@@ -70,7 +82,6 @@ public class StockFileProcessorServiceImpl {
         } catch (IOException e) {
             log.error("REPORT CAN NOT BE GENERATED");
         }
-
     }
 
     private void addInfo(String message) {
@@ -91,38 +102,6 @@ public class StockFileProcessorServiceImpl {
         return variants;
     }
 
-    private void updateProductsInventoryPolicy(final List<Variant> variantsToUpdate) {
-        log.info("START -> Updating products policy");
-        variantsToUpdate.forEach(variant -> {
-            try {
-                productServiceImpl.updateProductVariant(variant);
-            } catch (Exception e) {
-                final String message = "ERROR UPDATING POLICY OF PRODUCT " + variant.getSku();
-                log.info(message);
-                addInfo(message);
-                variantUpdateFails.add(variant);
-            }
-        });
-        log.info("END -> Updating products policy");
-    }
-
-    private void updateProductsStock(final List<Variant> variantsToUpdate) {
-        log.info("START -> Updating products stock");
-        final Map<Long, InventoryLevel> inventoryLevelMap = productServiceImpl.getVariantInventoryList(variantsToUpdate);
-
-        variantsToUpdate.forEach(variant -> {
-            try {
-                productServiceImpl.adjustVariantInventory(inventoryLevelMap.get(variant.getInventory_item_id()), variant.getStockAdjust());
-            } catch (Exception e) {
-                final String message = "ERROR UPDATING STOCK OF PRODUCT " + variant.getSku();
-                log.info(message);
-                addInfo(message);
-                variantUpdateFails.add(variant);
-            }
-        });
-        log.info("END -> Updating products stock");
-    }
-
     private List<Variant> getVariantsToUpdate(Set<Variant> variants, Map<String, Long> productsStockMap) {
         final List<Variant> variantsToUpdate = new ArrayList<>();
         log.info("START -> Get products that need to be updated");
@@ -131,8 +110,10 @@ public class StockFileProcessorServiceImpl {
             if (stock != null) {
                 if (variant.getInventory_quantity().compareTo(stock) != 0) {
                     if (stock > 2 || stock <= 0) {
+                        variant.setInventory_management(MANAGEMENT_SHOPIFY.getValue());
                         variant.setInventory_policy(REGULAR.getValue());
                     } else {
+                        variant.setInventory_management(MANAGEMENT_SHOPIFY.getValue());
                         variant.setInventory_policy(ONLY_AT_STORE.getValue());
                     }
                     variant.setStockAdjust(stock - variant.getInventory_quantity());
@@ -146,25 +127,34 @@ public class StockFileProcessorServiceImpl {
         return variantsToUpdate;
     }
 
-    private Map<String, Long> getProductsStockMapFromFile(final Path filePath) throws IOException {
+    private Map<String, Long> getProductsStockMapFromFile(final Path filePath) throws Exception {
         log.info("START -> Reading products from file");
-        FileReader fileReader = null;
-        File stockFile = null;
         List<ProductStockInfo> productStockInfoList = new ArrayList<>();
+        File stockFile = null;
+        FileReader fileReader = null;
         try {
             stockFile = filePath.toFile();
             fileReader = new FileReader(stockFile);
             productStockInfoList = new CsvToBeanBuilder(fileReader).withSkipLines(1)
                     .withType(ProductStockInfo.class).withSeparator(';').build().parse();
             log.info("END -> Reading products from file");
+            closeFileReader(fileReader);
+            deleteFile(stockFile);
         } catch (final Exception e) {
-            fileReader.close();
-            stockFile.delete();
+            closeFileReader(fileReader);
+            deleteFile(stockFile);
             throw e;
         }
-        fileReader.close();
-        stockFile.delete();
-
         return productStockInfoList.stream().collect(Collectors.toMap(ProductStockInfo::getSku, ProductStockInfo::getStock));
+    }
+
+    private void deleteFile(final File stockFile) {
+        if (stockFile != null)
+            stockFile.delete();
+    }
+
+    private void closeFileReader(final FileReader fileReader) throws IOException {
+        if (fileReader != null)
+            fileReader.close();
     }
 }

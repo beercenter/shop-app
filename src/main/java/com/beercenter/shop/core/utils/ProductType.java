@@ -5,8 +5,8 @@ import lombok.Getter;
 
 @AllArgsConstructor
 @Getter
-public enum InventoryPolicy {
-    REGULAR("deny") , ONLY_AT_STORE("continue"), MANAGEMENT_SHOPIFY("Shopify");
+public enum ProductType {
+    BEER("Cerveza");
 
     private String value;
 }
