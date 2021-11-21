@@ -1,5 +1,5 @@
-monitoringfolder: C:\Users\user\Desktop\STOCK
-reportfolder: C:\Users\user\Desktop\STOCK\REPORT
+monitoringfolder: C:\Users\beerc\Desktop\STOCK
+reportfolder: C:\Users\beerc\Desktop\STOCK\REPORT
 
 spring:
   application:
