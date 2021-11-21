@@ -6,12 +6,12 @@ import lombok.Data;
 @Data
 public class ProductStockInfo {
 
-    @CsvBindByPosition(position = 0)
+    @CsvBindByPosition(position = 1)
     private String sku;
 
-    @CsvBindByPosition(position = 4)
+    @CsvBindByPosition(position = 3)
     private String description;
 
-    @CsvBindByPosition(position = 11)
+    @CsvBindByPosition(position = 4)
     private Long stock;
 }
