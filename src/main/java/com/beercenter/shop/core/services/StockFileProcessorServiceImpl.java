@@ -3,6 +3,7 @@ package com.beercenter.shop.core.services;
 import com.beercenter.shop.core.beans.ConfigProperties;
 import com.beercenter.shop.core.model.InventoryLevel;
 import com.beercenter.shop.core.model.ProductStockInfo;
+import com.beercenter.shop.core.model.ShopProductInfo;
 import com.beercenter.shop.core.model.Variant;
 import com.opencsv.bean.CsvToBeanBuilder;
 import lombok.AllArgsConstructor;
@@ -17,6 +18,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.beercenter.shop.core.utils.InventoryPolicy.*;
+import static com.beercenter.shop.core.utils.ProductStatus.ACTIVE;
+import static com.beercenter.shop.core.utils.ProductStatus.INACTIVE;
 
 @AllArgsConstructor
 @Slf4j
@@ -33,16 +36,20 @@ public class StockFileProcessorServiceImpl {
         cleanVariables();
         try {
             log.info("START -> Execution");
-            final Map<String, Long> productsStockMap = getProductsStockMapFromFile(filePath);
-            final Set<Variant> variants = getProductsVariants();
-            final List<Variant> variantsToUpdate = getVariantsToUpdate(variants, productsStockMap);
-            if (!CollectionUtils.isEmpty(variantsToUpdate)) {
-                final Map<Long, InventoryLevel> inventoryLevelMap = productServiceImpl.getVariantInventoryList(variantsToUpdate);
-                variantsToUpdate.forEach(variant -> updateProduct(variant, inventoryLevelMap));
+            final boolean isResetMode = isResetMode(filePath);
+            if (isResetMode){
+                log.info("RESET MODE ACTIVE");
             }
-            log.info(String.format("END -> Execution { TOTAL READ : %s , TOTAL UPDATED : %s }", productsStockMap.size(), variantsToUpdate.size()));
+            final Map<String, Long> productsStockMap = getProductsStockMapFromFile(filePath);
+            final Set<ShopProductInfo> products = getProducts();
+            final Set<ShopProductInfo> productsToUpdate = getProductsToUpdate(products, productsStockMap, isResetMode);
+            if (!CollectionUtils.isEmpty(productsToUpdate)) {
+                final Map<Long, InventoryLevel> inventoryLevelMap = productServiceImpl.getVariantInventoryList(productsToUpdate);
+                productsToUpdate.forEach(product -> updateProduct(product, inventoryLevelMap));
+            }
+            log.info(String.format("END -> Execution { TOTAL READ : %s , TOTAL UPDATED : %s }", productsStockMap.size(), productsToUpdate.size()));
             addInfo("TOTAL PRODUCTS READ: " + productsStockMap.size());
-            addInfo("TOTAL PRODUCTS TO UPDATE: " + variantsToUpdate.size());
+            addInfo("TOTAL PRODUCTS TO UPDATE: " + productsToUpdate.size());
             addInfo("TOTAL PRODUCTS UPDATE FAILS: " + variantUpdateFails.size());
             addInfo("FAILS: " + variantUpdateFails.toString());
         } catch (final Exception e) {
@@ -53,11 +60,22 @@ public class StockFileProcessorServiceImpl {
         }
     }
 
-    private void updateProduct(final Variant variant, final Map<Long, InventoryLevel> inventoryLevelMap) {
+    private boolean isResetMode(Path filePath) {
+        return filePath.getFileName().toString().startsWith("reset");
+    }
+
+    private void updateProduct(final ShopProductInfo product, final Map<Long, InventoryLevel> inventoryLevelMap) {
+        final Variant variant = product.getVariants().get(0);
         try {
-            log.info("UPDATING PRODUCT: " + variant.getSku());
+            log.info("UPDATING PRODUCT: " + variant.getSku() + " -> " + product.getVendor() + " " + product.getHandle());
             productServiceImpl.updateProductVariant(Variant.builder().inventory_policy(variant.getInventory_policy()).inventory_management(variant.getInventory_management()).id(variant.getId()).build());
-            productServiceImpl.adjustVariantInventory(inventoryLevelMap.get(variant.getInventory_item_id()), variant.getStockAdjust());
+            final InventoryLevel inventoryLevel = inventoryLevelMap.get(variant.getInventory_item_id());
+            if (variant.getStockAdjust() != 0) {
+                productServiceImpl.adjustVariantInventory(inventoryLevel, Optional.ofNullable(variant.getStockAdjust()).orElse(variant.getInventory_quantity()));
+
+            }
+            productServiceImpl.updateProduct(product);
+            addInfo("PRODUCT UPDATED: " + variant.getSku());
         } catch (Exception e) {
             final String message = "ERROR UPDATING PRODUCT " + variant.getSku() + " ERROR: " + ExceptionUtils.getMessage(e);
             log.info(message);
@@ -95,20 +113,21 @@ public class StockFileProcessorServiceImpl {
         stringBuilder.append("REPORT");
     }
 
-    private Set<Variant> getProductsVariants() {
+    private Set<ShopProductInfo> getProducts() {
         log.info("START -> Get products from online store");
-        final Set<Variant> variants = productServiceImpl.getShopProducts();
+        final Set<ShopProductInfo> variants = productServiceImpl.getShopProducts();
         log.info("END -> Get products from online store");
         return variants;
     }
 
-    private List<Variant> getVariantsToUpdate(Set<Variant> variants, Map<String, Long> productsStockMap) {
-        final List<Variant> variantsToUpdate = new ArrayList<>();
+    private Set<ShopProductInfo> getProductsToUpdate(Set<ShopProductInfo> products, Map<String, Long> productsStockMap, boolean isResetMode) {
+        final Set<ShopProductInfo> productsToUpdate = new HashSet<>();
         log.info("START -> Get products that need to be updated");
-        variants.stream().forEach(variant -> {
-            final Long stock = productsStockMap.get(variant.getSku());
-            if (stock != null) {
-                if (variant.getInventory_quantity().compareTo(stock) != 0) {
+        products.stream().forEach(product -> {
+            final Variant variant = product.getVariants().get(0);
+            if (variant != null) {
+                final Long stock = productsStockMap.get(variant.getSku());
+                if (isResetMode || hasToBeUpdated(product, variant, stock)) {
                     if (stock > 2 || stock <= 0) {
                         variant.setInventory_management(MANAGEMENT_SHOPIFY.getValue());
                         variant.setInventory_policy(REGULAR.getValue());
@@ -116,15 +135,20 @@ public class StockFileProcessorServiceImpl {
                         variant.setInventory_management(MANAGEMENT_SHOPIFY.getValue());
                         variant.setInventory_policy(ONLY_AT_STORE.getValue());
                     }
+                    product.setStatus(stock <= 0 ? INACTIVE.getValue() : ACTIVE.getValue());
                     variant.setStockAdjust(stock - variant.getInventory_quantity());
-                    variantsToUpdate.add(variant);
+                    productsToUpdate.add(product);
+                } else {
+                    log.info("Variant not found in the inventory file: {}", variant);
                 }
-            } else {
-                log.info("Variant not found in the inventory file: {}", variant);
             }
         });
         log.info("END -> Get products that need to be updated");
-        return variantsToUpdate;
+        return productsToUpdate;
+    }
+
+    private boolean hasToBeUpdated(ShopProductInfo product, Variant variant, Long stock) {
+        return (stock != null && variant.getInventory_quantity().compareTo(stock) != 0) || ((stock > 2 || stock < 0) && variant.getInventory_policy().equalsIgnoreCase(ONLY_AT_STORE.getValue())) || ((stock > 0 && stock <= 2) && variant.getInventory_policy().equalsIgnoreCase(REGULAR.getValue()) || (stock <= 0 && product.getStatus().equalsIgnoreCase(ACTIVE.getValue())));
     }
 
     private Map<String, Long> getProductsStockMapFromFile(final Path filePath) throws Exception {

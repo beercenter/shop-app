@@ -7,6 +7,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.Collection;
+import java.util.List;
+
 @FeignClient(value = "shopify", url = "${shopify.url.base}")
 public interface ShopifyApiService {
 
@@ -24,4 +27,9 @@ public interface ShopifyApiService {
 
     @RequestMapping(method = RequestMethod.POST, value = "${shopify.url.inventoryleveladjust}", consumes = "application/json; charset=utf-8", headers = {"Authorization=Basic ${shopify.token}"})
     String adjustInventoryLevel(@RequestBody InventoryLevelRequest inventoryLevelRequest);
+
+    @RequestMapping(method = RequestMethod.PUT, value = "${shopify.url.product}", consumes = "application/json; charset=utf-8", headers = {"Authorization=Basic ${shopify.token}"})
+    String updateProduct(@RequestParam("id") Long productId, @RequestBody ProductRequest productRequest);
+
+
 }

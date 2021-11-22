@@ -14,6 +14,7 @@ shopify:
   url:
     base: https://beercenter-es.myshopify.com/admin/api/2021-10/
     products: products.json
+    product: /products/{id}.json
     variant: variants/{id}.json
     inventorylevel: inventory_levels.json
     inventoryleveladjust: inventory_levels/adjust.json

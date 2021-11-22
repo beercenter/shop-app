@@ -4,6 +4,7 @@ import com.beercenter.shop.core.model.*;
 
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.ListUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -18,11 +19,12 @@ import static com.beercenter.shop.core.utils.ProductType.BEER;
 @AllArgsConstructor
 public class ProductServiceImpl {
 
+    private static final int INVENTORY_QUERY_LIMIT = 50;
     private static final int QUERY_LIMIT = 250;
-    private static final int SLEEP_TIME = 200;
+    private static final int SLEEP_TIME = 100;
     private final ShopifyApiService shopifyApiService;
 
-    public Set<Variant> getShopProducts() {
+    public Set<ShopProductInfo> getShopProducts() {
         final List<ShopProductInfo> shopProductInfoList = shopifyApiService.getShopProducts(QUERY_LIMIT).getProducts();
         if (shopProductInfoList.size() == QUERY_LIMIT) {
             do {
@@ -30,7 +32,7 @@ public class ProductServiceImpl {
             } while (shopProductInfoList.size() % QUERY_LIMIT == 0);
         }
 
-        return shopProductInfoList.stream().filter(product -> product.getProduct_type().equalsIgnoreCase(BEER.getValue())).map(ShopProductInfo::getVariants).flatMap(Collection::stream).collect(Collectors.toSet());
+        return shopProductInfoList.stream().filter(product -> product.getProduct_type().equalsIgnoreCase(BEER.getValue())).collect(Collectors.toSet());
     }
 
     public String updateProductVariant(final Variant variant) throws InterruptedException {
@@ -38,15 +40,25 @@ public class ProductServiceImpl {
         return shopifyApiService.updateVariant(variant.getId(), VariantRequest.builder().variant(variant).build());
     }
 
-    public Map<Long, InventoryLevel> getVariantInventoryList(final List<Variant> variants) {
-        final List<String> inventoryIds = variants.stream().map(variant -> String.valueOf(variant.getInventory_item_id())).collect(Collectors.toList());
-        final String inventoryIdsString = String.join(",", inventoryIds);
+    public Map<Long, InventoryLevel> getVariantInventoryList(final Set<ShopProductInfo> products) {
+        final List<String> inventoryIds = products.stream().map(product -> String.valueOf(product.getVariants().get(0).getInventory_item_id())).collect(Collectors.toList());
+        List<List<String>> subInventoryIdList = ListUtils.partition(inventoryIds, INVENTORY_QUERY_LIMIT);
+        final List<InventoryLevel> inventoryLevels = new ArrayList<>();
 
-        return shopifyApiService.getInventoryLevels(inventoryIdsString).getInventory_levels().stream().collect(Collectors.toMap(InventoryLevel::getInventory_item_id, value -> value));
+        subInventoryIdList.stream().forEach(ids -> {
+            inventoryLevels.addAll(shopifyApiService.getInventoryLevels(String.join(",", ids)).getInventory_levels());
+        });
+
+        return inventoryLevels.stream().collect(Collectors.toMap(InventoryLevel::getInventory_item_id, value -> value));
     }
 
     public String adjustVariantInventory(final InventoryLevel inventoryLevel, final Long stock) throws InterruptedException {
         Thread.sleep(SLEEP_TIME);
         return shopifyApiService.adjustInventoryLevel(InventoryLevelRequest.builder().inventory_item_id(inventoryLevel.getInventory_item_id()).location_id(inventoryLevel.getLocation_id()).available_adjustment(stock).build());
+    }
+
+    public String updateProduct(final ShopProductInfo product) throws InterruptedException {
+        Thread.sleep(SLEEP_TIME);
+        return shopifyApiService.updateProduct(product.getId(), ProductRequest.builder().product(ShopProductInfo.builder().id(product.getId()).status(product.getStatus()).build()).build());
     }
 }
