@@ -37,7 +37,7 @@ public class StockFileProcessorServiceImpl {
         try {
             log.info("START -> Execution");
             final boolean isResetMode = isResetMode(filePath);
-            if (isResetMode){
+            if (isResetMode) {
                 log.info("RESET MODE ACTIVE");
             }
             final Map<String, Long> productsStockMap = getProductsStockMapFromFile(filePath);
@@ -138,9 +138,9 @@ public class StockFileProcessorServiceImpl {
                     product.setStatus(stock <= 0 ? INACTIVE.getValue() : ACTIVE.getValue());
                     variant.setStockAdjust(stock - variant.getInventory_quantity());
                     productsToUpdate.add(product);
-                } else {
-                    log.info("Variant not found in the inventory file: {}", variant);
                 }
+            } else {
+                log.info("Variant not found in the inventory file: {}", variant);
             }
         });
         log.info("END -> Get products that need to be updated");
